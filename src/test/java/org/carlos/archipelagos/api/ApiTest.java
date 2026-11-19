@@ -50,7 +50,8 @@ class ApiTest {
     void catalogListsProblemsAndSchemes() throws Exception {
         HttpResponse<String> response = get("/api/catalog");
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body()).contains("\"kursawe\"", "\"albp\"", "\"nsga2\"", "\"spea\"", "crossoverRate", "RING");
+        assertThat(response.body()).contains("\"kursawe\"", "\"albp\"", "\"nsga2\"", "\"spea\"", "crossoverRate", "RING",
+                "\"year\":1985", "\"defaultSelection\":\"nsga2\"");
     }
 
     @Test

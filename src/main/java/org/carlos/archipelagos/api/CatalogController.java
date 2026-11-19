@@ -23,11 +23,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class CatalogController {
 
-    public record Item(String name, String description, List<ParamSpec> params) {
+    /** @param year publication year (selection schemes only, otherwise null) */
+    public record Item(String name, Integer year, String description, List<ParamSpec> params) {
     }
 
-    public record Catalog(List<Item> problems, List<Item> selections, List<Topology> topologies,
-            List<EmigrantPolicy> emigrantPolicies, List<ImmigrantPolicy> immigrantPolicies) {
+    /** @param defaultSelection scheme used when a run request names none */
+    public record Catalog(List<Item> problems, List<Item> selections, String defaultSelection,
+            List<Topology> topologies, List<EmigrantPolicy> emigrantPolicies, List<ImmigrantPolicy> immigrantPolicies) {
     }
 
     public record Reference(String problem, List<String> objectives, List<double[]> front) {
@@ -44,9 +46,10 @@ public class CatalogController {
     @GetMapping("/catalog")
     public Catalog catalog() {
         return new Catalog(
-                problems.factories().stream().map(f -> new Item(f.name(), f.description(), f.params())).toList(),
-                selections.entries().stream().map(e -> new Item(e.name(), e.description(), e.params())).toList(),
-                Arrays.asList(Topology.values()), Arrays.asList(EmigrantPolicy.values()),
+                problems.factories().stream().map(f -> new Item(f.name(), null, f.description(), f.params())).toList(),
+                selections.entries().stream().map(e -> new Item(e.name(), e.year(), e.description(), e.params()))
+                        .toList(),
+                SelectionCatalog.DEFAULT, Arrays.asList(Topology.values()), Arrays.asList(EmigrantPolicy.values()),
                 Arrays.asList(ImmigrantPolicy.values()));
     }
 

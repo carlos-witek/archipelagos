@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotNull;
 import org.carlos.archipelagos.migration.EmigrantPolicy;
 import org.carlos.archipelagos.migration.ImmigrantPolicy;
 import org.carlos.archipelagos.migration.Topology;
+import org.carlos.archipelagos.selection.SelectionCatalog;
 
 /**
  * Configuration of one evolution run (the 2008 {@code EConfiguration} + {@code ProblemContext}).
@@ -57,7 +58,7 @@ public record RunRequest(
     }
 
     public RunRequest withDefaults() {
-        return new RunRequest(problem, selection == null ? new Component("nsga2", Map.of()) : selection,
+        return new RunRequest(problem, selection == null ? new Component(SelectionCatalog.DEFAULT, Map.of()) : selection,
                 islands == null ? 4 : islands, populationSize == null ? 100 : populationSize, offspring,
                 generations == null ? 250 : generations, restartInterval == null ? 0 : restartInterval,
                 (migration == null ? new Migration(null, null, null, null, null, null) : migration).withDefaults(),

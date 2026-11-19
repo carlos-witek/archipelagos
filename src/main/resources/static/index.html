@@ -155,8 +155,9 @@ function readParams(container) {
   return params;
 }
 
-function bindSelect(select, items, descEl, paramsEl, prefix) {
-  select.replaceChildren(...items.map(i => new Option(i.name, i.name)));
+function bindSelect(select, items, descEl, paramsEl, prefix, selected) {
+  select.replaceChildren(...items.map(i => new Option(i.year ? i.name + ' (' + i.year + ')' : i.name, i.name)));
+  if (selected) select.value = selected;
   const update = () => {
     const item = items.find(i => i.name === select.value);
     descEl.textContent = item.description;
@@ -169,7 +170,7 @@ function bindSelect(select, items, descEl, paramsEl, prefix) {
 async function init() {
   catalog = await (await fetch('/api/catalog')).json();
   bindSelect($('problem'), catalog.problems, $('problemDesc'), $('problemParams'), 'p');
-  bindSelect($('selection'), catalog.selections, $('selectionDesc'), $('selectionParams'), 's');
+  bindSelect($('selection'), catalog.selections, $('selectionDesc'), $('selectionParams'), 's', catalog.defaultSelection);
   $('topology').replaceChildren(...catalog.topologies.map(t => new Option(t, t)));
   $('emigrants').replaceChildren(...catalog.emigrantPolicies.map(t => new Option(t, t)));
   $('immigrants').replaceChildren(...catalog.immigrantPolicies.map(t => new Option(t, t)));
