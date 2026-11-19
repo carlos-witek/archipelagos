@@ -115,8 +115,56 @@ class SelectionsTest {
         List<SelectionCatalog.Entry> entries = catalog.entries();
         assertThat(entries).extracting(SelectionCatalog.Entry::year).isSorted();
         assertThat(entries).extracting(SelectionCatalog.Entry::name).containsExactly("vega", "random-objective",
-                "wbga-ve", "wbga-sf", "moga", "npga", "nsga", "spea", "nsga2");
+                "wbga-ve", "wbga-sf", "moga", "npga", "nsga", "spea", "spea2", "nsga2", "nsga3", "spea2-sde");
         assertThat(catalog.get(SelectionCatalog.DEFAULT).year()).isEqualTo(2002);
+    }
+
+    @Test
+    void spea2KeepsBoundaryPointsWhenTruncating() {
+        for (boolean sde : new boolean[] { false, true }) {
+            Spea2 spea2 = new Spea2(0, sde);
+            List<DoubleChromosome> archive = new ArrayList<>();
+            for (int i = 0; i <= 10; i++)
+                archive.add(evaluated(i, 10 - i)); // 11 non-dominated points on a line
+            List<DoubleChromosome> offspring = List.of(evaluated(20, 20), evaluated(4.5, 5.5));
+            List<DoubleChromosome> next = spea2.survive(archive, offspring, 5, new SelectionContext(new SplittableRandom(1)));
+            assertThat(next).hasSize(5);
+            assertThat(next).noneMatch(c -> c.objective(0) == 20); // dominated, never kept over non-dominated
+            assertThat(next).anyMatch(c -> c.objective(0) == 0).anyMatch(c -> c.objective(0) == 10);
+        }
+    }
+
+    @Test
+    void spea2FillsWithBestDominatedWhenFrontIsSmall() {
+        Spea2 spea2 = new Spea2(0, false);
+        DoubleChromosome best = evaluated(0, 0);
+        DoubleChromosome second = evaluated(1, 1);
+        List<DoubleChromosome> next = spea2.survive(List.of(best, evaluated(5, 5)),
+                List.of(second, evaluated(9, 9)), 2, new SelectionContext(new SplittableRandom(2)));
+        assertThat(next).containsExactlyInAnyOrder(best, second);
+        assertThat(best.fitness()).isLessThan(1.0);
+        assertThat(second.fitness()).isGreaterThanOrEqualTo(1.0);
+    }
+
+    @Test
+    void nsga3ReferencePointsMatchPopulation() {
+        Nsga3 nsga3 = new Nsga3(0);
+        assertThat(nsga3.referencesFor(3, 100)).hasSize(91); // 12 divisions
+        assertThat(new Nsga3(0).referencesFor(2, 100)).hasSize(100);
+        assertThat(new Nsga3(4).referencesFor(3, 100)).hasSize(15);
+    }
+
+    @Test
+    void nsga3SpreadsTheOverflowingFrontAcrossReferenceDirections() {
+        Nsga3 nsga3 = new Nsga3(4); // directions at 0, .25, .5, .75, 1 for two objectives
+        List<DoubleChromosome> crowded = new ArrayList<>();
+        for (int i = 0; i < 6; i++)
+            crowded.add(evaluated(0.01 * i, 1 - 0.01 * i)); // six points bunched near (0,1)
+        List<DoubleChromosome> spread = List.of(evaluated(0.5, 0.5), evaluated(1, 0));
+        List<DoubleChromosome> next = nsga3.survive(crowded, spread, 4, new SelectionContext(new SplittableRandom(3)));
+        assertThat(next).hasSize(4);
+        // the lone points in empty niches must win over the extra members of the crowded niche
+        assertThat(next).contains(spread.get(0), spread.get(1));
     }
 
     @Test
