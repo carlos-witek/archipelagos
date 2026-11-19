@@ -1,0 +1,5 @@
+.gradle/
+build/
+results/
+._*
+.DS_Store

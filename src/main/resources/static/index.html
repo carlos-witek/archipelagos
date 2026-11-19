@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archipelagos</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #dcdcd6;
+    --accent: #2f6db5; --ref: #b8b8b0; --point: #d0582c; --bad: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --panel: #1f1f1d; --text: #ececea; --muted: #9a9a94; --line: #34342f;
+      --accent: #6aa4e8; --ref: #55554f; --point: #f08a5d; --bad: #f2867f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; }
+  header { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 18px; }
+  header p { margin: 2px 0 0; color: var(--muted); }
+  main { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 16px; padding: 16px; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  h2 { font-size: 14px; margin: 0 0 8px; }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 6px; }
+  label { display: block; margin: 6px 0 2px; color: var(--muted); font-size: 12px; }
+  input, select { width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 4px;
+    background: var(--bg); color: var(--text); font: inherit; }
+  input[type=checkbox] { width: auto; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  button { padding: 7px 12px; border: 0; border-radius: 4px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .desc { color: var(--muted); font-size: 12px; margin: 4px 0; }
+  .error { color: var(--bad); white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  tr.run { cursor: pointer; }
+  tr.run.active { background: var(--bg); }
+  canvas { width: 100%; height: 420px; display: block; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-top: 8px; }
+  .stat { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  .stat b { display: block; font-size: 16px; }
+  .stat span { color: var(--muted); font-size: 11px; }
+  .right { display: grid; gap: 16px; align-content: start; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .toolbar a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Archipelagos</h1>
+  <p>Island-model multi-objective evolutionary algorithms</p>
+</header>
+<main>
+  <section>
+    <h2>New run</h2>
+    <form id="form">
+      <label for="problem">Problem</label>
+      <select id="problem"></select>
+      <div class="desc" id="problemDesc"></div>
+      <div id="problemParams"></div>
+
+      <h3>Selection</h3>
+      <select id="selection"></select>
+      <div class="desc" id="selectionDesc"></div>
+      <div id="selectionParams"></div>
+
+      <h3>Archipelago</h3>
+      <div class="row">
+        <div><label for="islands">islands</label><input id="islands" type="number" value="4" min="1"></div>
+        <div><label for="populationSize">population / island</label><input id="populationSize" type="number" value="100" min="4"></div>
+        <div><label for="generations">generations</label><input id="generations" type="number" value="250" min="1"></div>
+        <div><label for="seed">seed (empty = random)</label><input id="seed" type="number"></div>
+      </div>
+
+      <h3>Migration</h3>
+      <div class="row">
+        <div><label for="topology">topology</label><select id="topology"></select></div>
+        <div><label for="interval">every N generations</label><input id="interval" type="number" value="5" min="1"></div>
+        <div><label for="rate">rate</label><input id="rate" type="number" value="0.1" step="0.01" min="0" max="1"></div>
+        <div><label for="emigrants">emigrants</label><select id="emigrants"></select></div>
+        <div><label for="immigrants">immigrants</label><select id="immigrants"></select></div>
+      </div>
+      <p><button type="submit">Start</button></p>
+      <div class="error" id="formError"></div>
+    </form>
+  </section>
+
+  <div class="right">
+    <section>
+      <div class="toolbar">
+        <h2 id="runTitle" style="margin:0">No run selected</h2>
+        <button class="secondary" id="stop" hidden>Stop</button>
+        <a id="frontCsv" hidden>front.csv</a>
+        <a id="statsCsv" hidden>stats.csv</a>
+      </div>
+      <canvas id="chart" width="900" height="420" aria-label="Pareto front of the selected run"></canvas>
+      <div class="desc" id="chartNote"></div>
+      <div class="stats" id="stats"></div>
+    </section>
+    <section>
+      <h2>Runs</h2>
+      <table><thead><tr><th>problem</th><th>selection</th><th>status</th><th>gen</th><th>front</th><th>HV</th></tr></thead>
+        <tbody id="runs"></tbody></table>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let catalog, current, source, reference = [];
+
+function fieldFor(prefix, spec) {
+  const id = prefix + '.' + spec.name;
+  const wrap = document.createElement('div');
+  const label = document.createElement('label');
+  label.htmlFor = id;
+  label.textContent = spec.name + ' — ' + spec.label;
+  let input;
+  if (spec.type === 'CHOICE') {
+    input = document.createElement('select');
+    spec.choices.forEach(c => input.add(new Option(c, c)));
+    input.value = spec.defaultValue;
+  } else if (spec.type === 'BOOLEAN') {
+    input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!spec.defaultValue;
+  } else {
+    input = document.createElement('input');
+    input.type = spec.type === 'STRING' ? 'text' : 'number';
+    if (spec.type !== 'STRING') input.step = spec.type === 'INTEGER' ? '1' : 'any';
+    if (spec.min != null) input.min = spec.min;
+    if (spec.max != null) input.max = spec.max;
+    input.value = spec.defaultValue ?? '';
+  }
+  input.id = id;
+  input.dataset.param = spec.name;
+  input.dataset.type = spec.type;
+  wrap.append(label, input);
+  return wrap;
+}
+
+function renderParams(container, prefix, specs) {
+  container.replaceChildren(...specs.map(s => fieldFor(prefix, s)));
+}
+
+function readParams(container) {
+  const params = {};
+  container.querySelectorAll('[data-param]').forEach(el => {
+    const t = el.dataset.type;
+    if (t === 'BOOLEAN') params[el.dataset.param] = el.checked;
+    else if (t === 'INTEGER' || t === 'DOUBLE' || t === 'PERCENTAGE') { if (el.value !== '') params[el.dataset.param] = Number(el.value); }
+    else params[el.dataset.param] = el.value;
+  });
+  return params;
+}
+
+function bindSelect(select, items, descEl, paramsEl, prefix) {
+  select.replaceChildren(...items.map(i => new Option(i.name, i.name)));
+  const update = () => {
+    const item = items.find(i => i.name === select.value);
+    descEl.textContent = item.description;
+    renderParams(paramsEl, prefix, item.params);
+  };
+  select.onchange = update;
+  update();
+}
+
+async function init() {
+  catalog = await (await fetch('/api/catalog')).json();
+  bindSelect($('problem'), catalog.problems, $('problemDesc'), $('problemParams'), 'p');
+  bindSelect($('selection'), catalog.selections, $('selectionDesc'), $('selectionParams'), 's');
+  $('topology').replaceChildren(...catalog.topologies.map(t => new Option(t, t)));
+  $('emigrants').replaceChildren(...catalog.emigrantPolicies.map(t => new Option(t, t)));
+  $('immigrants').replaceChildren(...catalog.immigrantPolicies.map(t => new Option(t, t)));
+  refreshRuns();
+  setInterval(refreshRuns, 2000);
+}
+
+$('form').onsubmit = async e => {
+  e.preventDefault();
+  $('formError').textContent = '';
+  const num = id => $(id).value === '' ? null : Number($(id).value);
+  const body = {
+    problem: { name: $('problem').value, params: readParams($('problemParams')) },
+    selection: { name: $('selection').value, params: readParams($('selectionParams')) },
+    islands: num('islands'), populationSize: num('populationSize'), generations: num('generations'), seed: num('seed'),
+    migration: { topology: $('topology').value, interval: num('interval'), rate: num('rate'),
+      emigrants: $('emigrants').value, immigrants: $('immigrants').value }
+  };
+  const res = await fetch('/api/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const json = await res.json();
+  if (!res.ok) { $('formError').textContent = json.detail || JSON.stringify(json.errors || json); return; }
+  select(json.id);
+  refreshRuns();
+};
+
+const fmt = v => v == null ? '–' : (Math.abs(v) >= 1000 || (Math.abs(v) < 0.001 && v !== 0) ? v.toExponential(3) : v.toFixed(4));
+
+async function refreshRuns() {
+  const runs = await (await fetch('/api/runs')).json();
+  $('runs').replaceChildren(...runs.map(r => {
+    const tr = document.createElement('tr');
+    tr.className = 'run' + (r.id === current ? ' active' : '');
+    const l = r.latest || {};
+    [r.problem, r.config.selection.name, r.status, l.generation ?? '–', l.frontSize ?? '–', fmt(l.hypervolume)]
+      .forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.append(td); });
+    tr.onclick = () => select(r.id);
+    return tr;
+  }));
+}
+
+async function select(id) {
+  current = id;
+  if (source) source.close();
+  const run = await (await fetch('/api/runs/' + id)).json();
+  reference = (await (await fetch('/api/runs/' + id + '/reference')).json()).front;
+  $('runTitle').textContent = run.problem + ' · ' + run.config.selection.name + ' · seed ' + run.seed;
+  $('frontCsv').href = '/api/runs/' + id + '/front.csv'; $('frontCsv').hidden = false;
+  $('statsCsv').href = '/api/runs/' + id + '/stats.csv'; $('statsCsv').hidden = false;
+  $('stop').hidden = false;
+  $('stop').onclick = () => fetch('/api/runs/' + id + '/stop', { method: 'POST' });
+  render(run.objectives, run.front || [], run.latest, run.status, run.error);
+  source = new EventSource('/api/runs/' + id + '/events');
+  const onEvent = e => { const ev = JSON.parse(e.data); render(run.objectives, ev.front, ev.stats, ev.status, null); };
+  source.addEventListener('generation', onEvent);
+  source.addEventListener('end', e => { onEvent(e); source.close(); refreshRuns(); });
+}
+
+function render(objectives, front, stats, status, error) {
+  draw(objectives, front);
+  const items = [['status', status], ['generation', stats?.generation], ['evaluations', stats?.evaluations],
+    ['front size', stats?.frontSize], ['hypervolume', fmt(stats?.hypervolume)], ['IGD', fmt(stats?.invertedGenerationalDistance)],
+    ['IGD+', fmt(stats?.invertedGenerationalDistancePlus)], ['GD', fmt(stats?.generationalDistance)],
+    ['spacing', fmt(stats?.spacing)], ['max spread', fmt(stats?.maximumSpread)]];
+  $('stats').replaceChildren(...items.map(([k, v]) => {
+    const d = document.createElement('div'); d.className = 'stat';
+    const b = document.createElement('b'); b.textContent = v ?? '–';
+    const s = document.createElement('span'); s.textContent = k;
+    d.append(b, s); return d;
+  }));
+  if (error) $('chartNote').textContent = 'Error: ' + error;
+}
+
+function draw(objectives, front) {
+  const canvas = $('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  ctx.clearRect(0, 0, w, h);
+  $('chartNote').textContent = objectives.length > 2
+    ? 'Showing the first two of ' + objectives.length + ' objectives.' : (reference.length ? 'Grey: reference front.' : '');
+  const pts = front.map(p => p.objectives);
+  const all = pts.concat(reference);
+  if (!all.length) return;
+  const pad = 44;
+  let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity];
+  all.forEach(p => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
+  if (x1 === x0) { x0 -= 1; x1 += 1; } if (y1 === y0) { y0 -= 1; y1 += 1; }
+  const sx = v => pad + (v - x0) / (x1 - x0) * (w - pad - 12);
+  const sy = v => h - pad - (v - y0) / (y1 - y0) * (h - pad - 12);
+  ctx.strokeStyle = css.getPropertyValue('--line'); ctx.fillStyle = css.getPropertyValue('--muted');
+  ctx.font = '11px system-ui';
+  ctx.beginPath(); ctx.moveTo(pad, 12); ctx.lineTo(pad, h - pad); ctx.lineTo(w - 12, h - pad); ctx.stroke();
+  ctx.fillText(objectives[0] + '  [' + fmt(x0) + ' … ' + fmt(x1) + ']', pad, h - 16);
+  ctx.save(); ctx.translate(14, h - pad); ctx.rotate(-Math.PI / 2);
+  ctx.fillText(objectives[1] + '  [' + fmt(y0) + ' … ' + fmt(y1) + ']', 0, 0); ctx.restore();
+  ctx.fillStyle = css.getPropertyValue('--ref');
+  reference.forEach(p => ctx.fillRect(sx(p[0]) - 1, sy(p[1]) - 1, 2, 2));
+  ctx.fillStyle = css.getPropertyValue('--point');
+  pts.forEach(p => { ctx.beginPath(); ctx.arc(sx(p[0]), sy(p[1]), 3, 0, 2 * Math.PI); ctx.fill(); });
+}
+
+init();
+</script>
+</body>
+</html>
