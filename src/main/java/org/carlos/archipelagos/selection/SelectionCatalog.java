@@ -8,11 +8,19 @@ import org.carlos.archipelagos.param.ParamSpec;
 import org.carlos.archipelagos.param.Params;
 import org.springframework.stereotype.Component;
 
-/** All selection schemes with their parameters. Each island gets its own instance. */
+/**
+ * All selection schemes with their parameters, ordered by the year the scheme was published.
+ * Each island gets its own instance.
+ */
 @Component
 public class SelectionCatalog {
 
-    public record Entry(String name, String description, List<ParamSpec> params, Function<Params, Selection> factory) {
+    /** Default scheme when a run request names none. */
+    public static final String DEFAULT = "nsga2";
+
+    /** @param year year the scheme was first published */
+    public record Entry(String name, int year, String description, List<ParamSpec> params,
+            Function<Params, Selection> factory) {
     }
 
     private static final ParamSpec SHARING = ParamSpec.decimal("sigmaShare",
@@ -23,29 +31,36 @@ public class SelectionCatalog {
     private final Map<String, Entry> entries = new java.util.LinkedHashMap<>();
 
     public SelectionCatalog() {
-        register(new Entry("nsga2", "NSGA-II (Deb 2002): crowded tournaments + elitist survival. Modern default.",
-                List.of(), p -> new Nsga2()));
-        register(new Entry("vega", "VEGA (Schaffer 1985): one share of the mating pool per objective.", List.of(),
-                p -> new Vega()));
-        register(new Entry("moga", "MOGA (Fonseca & Fleming 1993): dominator-count ranks + sharing.", List.of(SHARING),
-                p -> new Moga(p.getDouble("sigmaShare"))));
-        register(new Entry("nsga", "NSGA (Srinivas & Deb 1994): non-dominated fronts + sharing.", List.of(SHARING),
-                p -> new Nsga(p.getDouble("sigmaShare"))));
-        register(new Entry("npga", "NPGA (Horn 1994): Pareto domination tournaments.",
+        register(new Entry("vega", 1985, "VEGA (Schaffer 1985): one share of the mating pool per objective.",
+                List.of(), p -> new Vega()));
+        register(new Entry("random-objective", 1991,
+                "Random objective (Kursawe 1991): one randomly chosen objective drives each generation.", List.of(),
+                p -> new RandomObjectiveSelection()));
+        register(new Entry("wbga-ve", 1992, "Weight-based GA (Hajela & Lin 1992), one sub-pool per weight vector.",
+                List.of(VECTORS), p -> new WbgaVe(p.getString("weightVectors"))));
+        register(new Entry("wbga-sf", 1992,
+                "Weight-based GA (Hajela & Lin 1992), individuals grouped by weight vector, group sharing.",
+                List.of(VECTORS), p -> new WbgaSf(p.getString("weightVectors"))));
+        register(new Entry("moga", 1993, "MOGA (Fonseca & Fleming 1993): dominator-count ranks + sharing.",
+                List.of(SHARING), p -> new Moga(p.getDouble("sigmaShare"))));
+        register(new Entry("npga", 1994, "NPGA (Horn, Nafpliotis & Goldberg 1994): Pareto domination tournaments.",
                 List.of(SHARING, ParamSpec.integer("comparisonSetSize", "size of the comparison set", 5, 1, 1000)),
                 p -> new Npga(p.getDouble("sigmaShare"), p.getInt("comparisonSetSize"))));
-        register(new Entry("spea", "SPEA (Zitzler & Thiele 1999): external non-dominated set with clustering.",
+        register(new Entry("nsga", 1994, "NSGA (Srinivas & Deb 1994): non-dominated fronts + sharing.",
+                List.of(SHARING), p -> new Nsga(p.getDouble("sigmaShare"))));
+        register(new Entry("spea", 1999, "SPEA (Zitzler & Thiele 1999): external non-dominated set with clustering.",
                 List.of(ParamSpec.integer("externalSize", "maximum size of the external set", 8, 1, 10000)),
                 p -> new Spea(p.getInt("externalSize"))));
-        register(new Entry("wbga-ve", "Weight-based GA, one sub-pool per weight vector.", List.of(VECTORS),
-                p -> new WbgaVe(p.getString("weightVectors"))));
-        register(new Entry("wbga-sf", "Weight-based GA, individuals grouped by weight vector, group sharing.",
-                List.of(VECTORS), p -> new WbgaSf(p.getString("weightVectors"))));
-        register(new Entry("random-objective", "One random objective drives each generation.", List.of(),
-                p -> new RandomObjectiveSelection()));
+        register(new Entry(DEFAULT, 2002,
+                "NSGA-II (Deb et al. 2002): crowded tournaments + elitist survival. Modern default.", List.of(),
+                p -> new Nsga2()));
     }
 
     private void register(Entry entry) {
+        Entry last = entries.isEmpty() ? null : List.copyOf(entries.values()).get(entries.size() - 1);
+        if (last != null && last.year() > entry.year())
+            throw new IllegalStateException("Selection schemes must be registered in chronological order: "
+                    + entry.name() + " (" + entry.year() + ") after " + last.name() + " (" + last.year() + ")");
         entries.put(entry.name(), entry);
     }
 

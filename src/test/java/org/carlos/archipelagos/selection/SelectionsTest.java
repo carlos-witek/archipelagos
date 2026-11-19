@@ -111,6 +111,15 @@ class SelectionsTest {
     }
 
     @Test
+    void catalogIsChronologicalAndKeepsNsga2AsDefault() {
+        List<SelectionCatalog.Entry> entries = catalog.entries();
+        assertThat(entries).extracting(SelectionCatalog.Entry::year).isSorted();
+        assertThat(entries).extracting(SelectionCatalog.Entry::name).containsExactly("vega", "random-objective",
+                "wbga-ve", "wbga-sf", "moga", "npga", "nsga", "spea", "nsga2");
+        assertThat(catalog.get(SelectionCatalog.DEFAULT).year()).isEqualTo(2002);
+    }
+
+    @Test
     void rouletteFallsBackToUniformOnZeroTotal() {
         List<DoubleChromosome> pool = randomPopulation(5, new SplittableRandom(1));
         pool.forEach(c -> c.setFitness(0));
